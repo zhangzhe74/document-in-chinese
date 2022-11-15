@@ -649,3 +649,125 @@ export default () => {
 `options.loadingDelay`支持动态的变化
 
 ## 轮询
+
+通过设置`options.pollingInterval`, 进入轮询模式，`useRequest`将会周期性的触发service执行
+
+```typescript
+const { data, run, cancel } = useRequest(getUsername, {
+  pollingInterval: 3000,
+});
+```
+
+例如，在上面的场景里面，`getUsername`将会每3000ms请求一次，你可以通过cancel停止轮询，通过`run/runAsync`启动轮询。
+你可以通过下面的例子体验这种效果。
+
+```typescript
+import { useRequest } from 'ahooks';
+import React from 'react';
+import Mock from 'mockjs';
+
+function getUsername() {
+  console.log('polling getUsername');
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(Mock.mock('@name'));
+    }, 1000);
+  });
+}
+
+export default () => {
+  const { data, loading, run, cancel } = useRequest(getUsername, {
+    pollingInterval: 1000,
+    pollingWhenHidden: false,
+  });
+
+  return (
+    <>
+      <p>Username: {loading ? 'Loading' : data}</p>
+      <button type="button" onClick={run}>
+        start
+      </button>
+      <button type="button" onClick={cancel} style={{ marginLeft: 16 }}>
+        stop
+      </button>
+    </>
+  );
+};
+```
+
+### 轮询错误重试
+
+通过`options.PollingErrorRetryCount`配置轮询重试次数
+
+```typescript
+const { data, run, cancel } = useRequest(getUsername, {
+  pollingInterval: 3000,
+  pollingErrorRetryCount: 3,
+});
+```
+
+你可以通过下面的例子来体验
+
+```typescript
+import { useRequest } from 'ahooks';
+import React from 'react';
+import Mock from 'mockjs';
+import { message } from 'antd';
+
+function getUsername() {
+  console.log('polling getUsername Error');
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      reject(new Error(Mock.mock('@name')));
+    }, 1000);
+  });
+}
+
+export default () => {
+  const { data, loading, run, cancel } = useRequest(getUsername, {
+    pollingInterval: 1000,
+    pollingWhenHidden: false,
+    pollingErrorRetryCount: 3,
+    manual: true,
+    onError: (error) => {
+      message.error(error.message);
+    },
+  });
+
+  return (
+    <>
+      <p>Username: {loading ? 'Loading' : data}</p>
+      <button type="button" onClick={run}>
+        start
+      </button>
+      <button type="button" onClick={cancel} style={{ marginLeft: 16 }}>
+        stop
+      </button>
+    </>
+  );
+};
+```
+
+### API
+
+#### return
+
+|属性|描述|类型|
+|-|-|-|
+|run| 开始轮询|(...params: TParams) => void|
+|runAsync| 开始轮询| (...params: TParams) => Promise< TData >|
+|cancel|停止轮询| ()=>void|
+
+#### Options
+
+|属性|描述|类型|默认|
+|-|-|-|-|
+|pollingInterval|轮询间隔，单位毫秒。如果值大于0，轮询模式激活|number|0|
+|pollingWhenHidden|页面隐藏的时候，轮询是否继续。如果设置false，当页面隐藏的时候轮询将会暂停，页面重新展示的时候恢复|boolean|true|
+|pollingErrorRetryCount|轮询错误重试的次数，如果设置为-1，则为无限次|number|-1|
+
+### 备注
+
+* `options.pollingInterval`, `options.pollingWhenHidden` 支持动态的改变。
+* 如果你设置`options.manual = true`, 初始化的时候将不会开始轮询，你需要通过使用`run/runAsync`来开始
+* 轮询的逻辑是请求完成之后等待`pollingInterval`的时间，然后开始执行下一次的请求。
